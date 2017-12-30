@@ -12,7 +12,7 @@ arg=""
 errors=""
 outputfolder="/usr/share/veil-output"
 runuser="$(whoami)"
-if [ "${os}" == "ubuntu" ] || [ "${os}" == "arch" ]; then
+if [ "${os}" == "ubuntu" ] || [ "${os}" == "arch" ] || [ "${os}" == "blackarch" ] || [ "${os}" == "debian" ] || [ "${os}" == '"elementary"' ] || [ "${os}" == "deepin" ] || [ "${os}" == "linuxmint" ] ; then
   trueuser="$(who | tr -d '\n' | cut -d' ' -f1)"
 else
   trueuser="$(who am i | cut -d' ' -f1)" # If this is blank, we're actually root (kali)
@@ -143,7 +143,7 @@ func_package_deps(){
   # Always install 32-bit support for 64-bit architectures
 
   # Debian based distributions
-  if [ "${os}" == "ubuntu" ] || [ "${os}" == "debian" ] || [ "${os}" == "kali" ] || [ "${os}" == "parrot" ]; then
+  if [ "${os}" == "ubuntu" ] || [ "${os}" == "debian" ] || [ "${os}" == "kali" ] || [ "${os}" == "parrot" ] || [ "${os}" == "deepin" ] || [ "${os}" == "linuxmint" ]; then
     if [ "${silent}" == "true" ]; then
       echo -e "\n\n [*] ${YELLOW}Silent Mode${RESET}: ${GREEN}Enabled${RESET}\n"
       arg=" DEBIAN_FRONTEND=noninteractive"
@@ -155,10 +155,10 @@ func_package_deps(){
       sudo apt-get -qq update
 
       echo -e " [*] ${YELLOW}Installing Wine 32-bit and 64-bit binaries${RESET}"
-      if [ "${os}" != "ubuntu" ]; then
-        sudo ${arg} apt-get -y -qq install wine wine64 wine32
-      else # Special snowflakes... urghbuntu
+      if [ "${os}" == "ubuntu" ] || [ "${os}" == "linuxmint" ]; then  #Special urghbuntu derivative snowflakes
         sudo ${arg} apt-get -y -qq install wine wine1.6 wine1.6-i386
+      else # anything that isn't ubuntu or ubuntu-derived
+        sudo ${arg} apt-get -y -qq install wine wine64 wine32
       fi
       tmp="$?"
       if [ "${tmp}" -ne "0" ]; then
@@ -181,6 +181,18 @@ func_package_deps(){
       echo -e "${RED}[ERROR]: Architecture ${arch} is not supported!\n${RESET}"
       exit 1
     fi
+  
+  #Elementary OS x86_64
+  elif [ "${os}" == '"elementary"' ]; then
+    echo -e "\n\n [*] ${YELLOW}Installing Wine on Elementary OS${RESET}\n"
+    sudo ${arg} apt-get -y -qq install wine wine1.6 wine1.6-amd64
+    tmp="$?"
+    if [ "${tmp}" -ne "0" ]; then
+      msg="Failed to install Wine in Elementary OS... Exit code: ${tmp}"
+      errors="${errors}\n${msg}"
+      echo -e " ${RED}[ERROR] ${msg}${RESET}\n"
+    fi
+    
   # Red Hat based distributions
   elif [ "${os}" == "fedora" ] || [ "${os}" == "rhel" ] || [ "${os}" == "centos" ]; then
     echo -e "\n\n [*] ${YELLOW}Installing Wine 32-bit on x86_64 System${RESET}"
@@ -191,7 +203,7 @@ func_package_deps(){
       errors="${errors}\n${msg}"
       echo -e " ${RED}[ERROR] ${msg}${RESET}\n"
     fi
-  elif [ "${os}" == "arch" ]; then
+  elif [ "${os}" == "arch" ] || [ "${os}" == "blackarch" ]; then
     if grep -Fxq "#[multilib]" /etc/pacman.conf; then
       echo "[multilib]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
     fi
@@ -284,18 +296,22 @@ func_package_deps(){
 
   # Start dependency install
   echo -e "\n\n [*] ${YELLOW}Installing dependencies${RESET}"
-  if [ "${os}" == "debian" ] || [ "${os}" == "kali" ] || [ "${os}" == "parrot" ] || [ "${os}" == "ubuntu" ]; then
-    sudo ${arg} apt-get -y install mingw-w64 monodoc-browser monodevelop mono-mcs wine unzip ruby golang wget git \
-      python python-crypto python-pefile python-pip ca-certificates python3-pip #ttf-mscorefonts-installer
+  if [ "${os}" == "debian" ] || [ "${os}" == "kali" ] || [ "${os}" == "parrot" ] || [ "${os}" == "ubuntu" ] || [ "${os}" == "deepin" ] || [ "${os}" == "linuxmint" ]; then
+    sudo ${arg} apt-get -y install mingw-w64 monodevelop mono-mcs wine unzip ruby golang wget git \
+      python python-crypto python-pefile python-pip ca-certificates python3-pip winbind #ttf-mscorefonts-installer
+
+  elif [ "${os}" == '"elementary"' ]; then
+    sudo ${arg} apt-get -y install mingw-w64 monodevelop mono-mcs wine unzip ruby golang wget git \
+      python python-crypto python-pefile python-pip ca-certificates python3-pip winbind python3-crypto
 
   elif [ "${os}" == "fedora" ] || [ "${os}" == "rhel" ] || [ "${os}" == "centos" ]; then
     sudo ${arg} dnf -y install mingw64-binutils mingw64-cpp mingw64-gcc mingw64-gcc-c++ mono-tools-monodoc monodoc \
       monodevelop mono-tools mono-core wine unzip ruby golang wget git python python-crypto python-pefile \
-      python-pip ca-certificates msttcore-fonts-installer python3-pip
+      python-pip ca-certificates msttcore-fonts-installer python3-pip winbind
 
-  elif [ "${os}" ==  "arch" ]; then
+  elif [ "${os}" ==  "arch" ] || [ "${os}" == "blackarch" ]; then
     sudo pacman -Sy ${arg} --needed mingw-w64-binutils mingw-w64-crt mingw-w64-gcc mingw-w64-headers mingw-w64-winpthreads \
-      mono mono-tools mono-addins python2-pip wget unzip ruby python python2 python-crypto gcc-go ca-certificates base-devel python3-pip
+      mono mono-tools mono-addins python2-pip wget unzip ruby python python2 python-crypto gcc-go ca-certificates base-devel python-pip krb5 samba
     # Install pefile for python2 using pip, rather than via AUR as the package is currently broken.
     sudo pip2 install pefile
   fi
@@ -545,10 +561,22 @@ elif [ "${os}" == "parrot" ]; then
 elif [ "${os}" == "ubuntu" ]; then
   version="$(awk -F '["=]' '/^VERSION_ID=/ {print $3}' /etc/os-release 2>&- | cut -d'.' -f1)"
   echo -e " [I] ${YELLOW}Ubuntu ${version} ${arch} detected...${RESET}\n"
+elif [ "${os}" == "linuxmint" ]; then
+  version="$(awk -F '["=]' '/^VERSION_ID=/ {print $3}' /etc/os-release 2>&- | cut -d'.' -f1)"
+  echo -e " [I] ${YELLOW}Linux Mint ${version} ${arch} detected...${RESET}\n"
   if [[ "${version}" -lt "15" ]]; then
     echo -e " ${RED}[ERROR]: Veil-Evasion is only supported On Ubuntu 15.10 or higher!${RESET}\n"
     exit 1
   fi
+elif [ "${os}" == "deepin" ]; then
+  version="$(awk -F '["=]' '/^VERSION_ID=/ {print $3}' /etc/os-release 2>&- | cut -d'.' -f1)"
+  echo -e " [I] ${YELLOW}Deepin ${version} ${arch} detected...${RESET}\n"
+  if [[ "${version}" -lt "15" ]]; then
+    echo -e " ${RED}[ERROR]: Veil-Evasion is only supported On Deepin 15 or higher!${RESET}\n"
+    exit 1
+  fi
+elif [ "${os}" == '"elementary"' ]; then
+	echo -e " [I] ${YELLOW}Elementary OS ${version} ${arch} detected...${RESET}\n"
 elif [ "${os}" == "debian" ]; then
   version="$(awk -F '["=]' '/^VERSION_ID=/ {print $3}' /etc/os-release 2>&- | cut -d'.' -f1)"
   if [ "${version}" -lt 8 ]; then
@@ -565,6 +593,8 @@ else
   os="$(awk -F '["=]' '/^ID=/ {print $2}' /etc/os-release 2>&- | cut -d'.' -f1)"
   if [ "${os}" == "arch" ]; then
     echo -e " [I] ${YELLOW}Arch Linux ${arch} detected...${RESET}\n"
+  elif [ "${os}" == "blackarch" ]; then
+	echo -e " [I] ${RED}BlackArch Linux ${arch} detected...${RESET}\n"
   elif [ "${os}" == "debian" ]; then
     echo -e " [!] ${RED}Debian Linux sid/TESTING ${arch} *possibly* detected..."
     echo -e "     If you are not currently running Debian Testing, you should exit this installer!${RESET}\n"

